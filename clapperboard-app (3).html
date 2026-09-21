@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>클랩! · Clapperboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#17171a; --panel:#1f2023; --panel-2:#26272b; --panel-3:#2d2e33;
+    --slate:#0b0b0c; --chalk:#f2efe6; --chalk-dim:#b6b2a6;
+    --amber:#e8a23c; --amber-2:#c98527;
+    --red:#c9544c; --red-dim:#7a332f;
+    --green:#5c9a6f; --green-dim:#33513e;
+    --border:#35363b; --border-soft:#2a2b2f;
+    --radius-sm:6px; --radius-md:12px; --radius-lg:20px;
+    --font-display:'Oswald',sans-serif;
+    --font-mono:'Space Mono',monospace;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#17171a; }
+  }
+  :root[data-theme="dark"]{ --bg:#17171a; }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--chalk);
+    font-family:var(--font-body);
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    overflow:hidden;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(232,162,60,0.07), transparent 45%),
+      radial-gradient(ellipse at 90% 110%, rgba(92,154,111,0.06), transparent 45%);
+  }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  #app{ height:100%; width:100%; position:relative; overflow:hidden; }
+  .screen{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    animation: fadeIn .22s ease;
+  }
+  .screen.active{ display:flex; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ .screen{animation:none;} }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--panel-3); border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  h1,h2,h3,.font-display{ font-family:var(--font-display); letter-spacing:.02em; margin:0; }
+  .mono{ font-family:var(--font-mono); }
+
+  button{ font-family:var(--font-body); cursor:pointer; border:none; background:none; color:inherit; }
+  input,textarea{ font-family:var(--font-body); }
+
+  /* ---------- stripe motif ---------- */
+  .clap-stripe{
+    height:14px;
+    background: repeating-linear-gradient(115deg, var(--chalk) 0 22px, var(--slate) 22px 44px);
+    flex-shrink:0;
+  }
+
+  /* ---------- Home ---------- */
+  #screen-home{ padding:36px 48px; }
+  .home-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:28px; }
+  .home-title{ font-size:34px; font-weight:600; }
+  .home-title span{ color:var(--amber); }
+  .home-sub{ color:var(--chalk-dim); font-size:14px; margin-top:4px; }
+  .new-project-btn{
+    background:var(--amber); color:var(--slate); font-family:var(--font-display);
+    font-size:15px; font-weight:600; letter-spacing:.03em;
+    padding:14px 22px; border-radius:var(--radius-md);
+    display:flex; align-items:center; gap:8px;
+    transition:transform .12s ease, background .12s ease;
+  }
+  .new-project-btn:hover{ background:var(--amber-2); }
+  .new-project-btn:active{ transform:scale(.97); }
+
+  .project-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+    gap:18px; overflow-y:auto; padding-bottom:24px; align-content:start;
+    height:calc(100% - 100px);
+  }
+  .project-card{
+    background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md);
+    overflow:hidden; text-align:left; display:flex; flex-direction:column;
+    transition:border-color .15s ease, transform .12s ease;
+    position:relative;
+  }
+  .project-card:hover{ border-color:var(--amber); transform:translateY(-2px); }
+  .project-card .body{ padding:16px 18px 18px; }
+  .project-card .p-title{ font-size:19px; font-weight:600; margin-bottom:6px; }
+  .project-card .p-meta{ color:var(--chalk-dim); font-size:12.5px; line-height:1.7; }
+  .project-card .p-progress{ margin-top:12px; }
+  .progress-track{ height:5px; border-radius:4px; background:var(--panel-3); overflow:hidden; }
+  .progress-fill{ height:100%; background:var(--amber); border-radius:4px; }
+  .progress-label{ font-size:11px; color:var(--chalk-dim); margin-top:6px; font-family:var(--font-mono); }
+  .card-del{
+    position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%;
+    background:rgba(0,0,0,.35); color:var(--chalk-dim); font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .card-del:hover{ background:var(--red-dim); color:var(--chalk); }
+
+  .empty-state{ color:var(--chalk-dim); text-align:center; padding-top:80px; }
+  .empty-state .glyph{ font-size:44px; margin-bottom:12px; opacity:.6; }
+
+  /* ---------- Form (new project) ---------- */
+  #screen-new{ padding:0; }
+  .form-shell{ max-width:640px; margin:0 auto; padding:36px 24px 60px; overflow-y:auto; height:100%; width:100%; }
+  .topbar{
+    display:flex; align-items:center; gap:14px; padding:16px 24px;
+    border-bottom:1px solid var(--border-soft); flex-shrink:0;
+  }
+  .back-btn{
+    width:36px; height:36px; border-radius:50%; background:var(--panel-2);
+    display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--chalk-dim);
+  }
+  .back-btn:hover{ background:var(--panel-3); color:var(--chalk); }
+  .topbar-title{ font-family:var(--font-display); font-size:18px; font-weight:600; }
+
+  .field{ margin-bottom:20px; }
+  .field label{ display:block; font-size:12.5px; color:var(--chalk-dim); margin-bottom:7px; font-family:var(--font-display); letter-spacing:.02em; }
+  .field input[type=text], .field input[type=number], .field textarea{
+    width:100%; background:var(--panel); border:1px solid var(--border); color:var(--chalk);
+    border-radius:var(--radius-sm); padding:12px 13px; font-size:15px; outline:none;
+    transition:border-color .12s ease;
+  }
+  .field input:focus, .field textarea:focus{ border-color:var(--amber); }
+  .field textarea{ resize:vertical; min-height:56px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .upload-box{
+    border:1.5px dashed var(--border); border-radius:var(--radius-md); padding:18px;
+    display:flex; align-items:center; gap:14px; background:var(--panel);
+  }
+  .upload-box .icon{ font-size:22px; }
+  .upload-box .info{ flex:1; }
+  .upload-box .fname{ font-size:13.5px; color:var(--chalk); }
+  .upload-box .fhint{ font-size:11.5px; color:var(--chalk-dim); margin-top:2px; }
+  .upload-btn{ background:var(--panel-3); padding:8px 14px; border-radius:var(--radius-sm); font-size:12.5px; }
+  .upload-btn:hover{ background:var(--border); }
+  .submit-btn{
+    width:100%; background:var(--amber); color:var(--slate); font-family:var(--font-display);
+    font-weight:600; font-size:16px; padding:15px; border-radius:var(--radius-md); margin-top:8px;
+    letter-spacing:.02em;
+  }
+  .submit-btn:hover{ background:var(--amber-2); }
+  .submit-btn:disabled{ opacity:.4; }
+  .req-err{ color:var(--red); font-size:12.5px; margin-top:-10px; margin-bottom:16px; display:none; }
+
+  /* ---------- Project shell ---------- */
+  #screen-project{ padding:0; }
+  .proj-topbar{
+    display:flex; align-items:center; gap:16px; padding:14px 22px;
+    border-bottom:1px solid var(--border-soft); flex-shrink:0; background:var(--panel);
+  }
+  .proj-title{ font-family:var(--font-display); font-weight:600; font-size:17px; }
+  .proj-tabs{ display:flex; gap:4px; margin-left:auto; background:var(--panel-2); padding:4px; border-radius:10px; }
+  .proj-tab{ padding:9px 18px; border-radius:8px; font-size:13.5px; font-family:var(--font-display); color:var(--chalk-dim); letter-spacing:.02em; }
+  .proj-tab.active{ background:var(--amber); color:var(--slate); }
+  .proj-body{ flex:1; overflow:hidden; position:relative; }
+  .proj-view{ position:absolute; inset:0; display:none; }
+  .proj-view.active{ display:flex; }
+
+  /* ---------- Storage / Archive ---------- */
+  #view-storage{ flex-direction:column; padding:22px 26px; overflow-y:auto; gap:18px; }
+  .storage-head{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px; }
+  .storage-progress-card{
+    background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md);
+    padding:16px 20px; display:flex; align-items:center; gap:20px; min-width:200px;
+  }
+  .storage-progress-text .big{ font-family:var(--font-mono); font-size:28px; color:var(--amber); }
+  .storage-progress-text .lbl{ font-size:11.5px; color:var(--chalk-dim); margin-top:2px; }
+  .export-btns{ display:flex; gap:10px; }
+  .export-btn{
+    background:var(--panel-2); border:1px solid var(--border); padding:11px 16px; border-radius:var(--radius-sm);
+    font-size:13px; display:flex; align-items:center; gap:8px; font-family:var(--font-display); letter-spacing:.02em;
+  }
+  .export-btn:hover{ border-color:var(--amber); color:var(--amber); }
+  .export-btn.primary{ background:var(--amber); color:var(--slate); border-color:var(--amber); }
+  .export-btn.primary:hover{ background:var(--amber-2); color:var(--slate); }
+
+  .log-table-wrap{ background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md); overflow:hidden; }
+  table.log-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.log-table th{
+    text-align:left; padding:11px 14px; background:var(--panel-2); color:var(--chalk-dim);
+    font-family:var(--font-display); font-weight:500; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase;
+    border-bottom:1px solid var(--border-soft);
+  }
+  table.log-table td{ padding:10px 14px; border-bottom:1px solid var(--border-soft); font-family:var(--font-mono); font-size:13px; }
+  table.log-table tr:last-child td{ border-bottom:none; }
+  .pill{ padding:3px 9px; border-radius:20px; font-size:11px; font-family:var(--font-display); letter-spacing:.03em; }
+  .pill.ok{ background:var(--green-dim); color:#a7d9b6; }
+  .pill.ng{ background:var(--red-dim); color:#f0b3ae; }
+  .table-empty{ padding:40px; text-align:center; color:var(--chalk-dim); font-size:13.5px; }
+
+  /* ---------- Script viewer ---------- */
+  #view-script{ flex-direction:column; }
+  .script-tabs{ display:flex; gap:8px; padding:14px 22px; border-bottom:1px solid var(--border-soft); flex-shrink:0; }
+  .script-tab{ padding:8px 16px; border-radius:8px; background:var(--panel-2); font-size:13px; color:var(--chalk-dim); font-family:var(--font-display); }
+  .script-tab.active{ background:var(--amber); color:var(--slate); }
+  .script-frame-wrap{ flex:1; padding:0 22px 22px; }
+  .script-frame-wrap iframe{ width:100%; height:100%; border:none; border-radius:var(--radius-md); background:#fff; }
+  .script-empty{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--chalk-dim); gap:10px; }
+  .script-empty .glyph{ font-size:40px; opacity:.5; }
+
+  /* ---------- Clapperboard ---------- */
+  .clapper-stage{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:18px 26px; gap:14px; overflow:hidden;
+  }
+  .board{
+    width:100%; max-width:900px; background:var(--slate); border-radius:14px;
+    box-shadow:0 20px 50px rgba(0,0,0,.45); overflow:hidden; border:1px solid #000;
+    display:flex; flex-direction:column;
+    transform-origin:top center;
+  }
+  .board.clapping{ animation:clapShake .32s ease; }
+  @keyframes clapShake{ 0%{transform:rotate(0)} 30%{transform:rotate(-1.2deg) translateY(1px)} 55%{transform:rotate(.6deg)} 100%{transform:rotate(0)} }
+
+  .clapper-arm{
+    height:34px; transform-origin:bottom left;
+    background: repeating-linear-gradient(115deg, var(--chalk) 0 24px, var(--slate) 24px 48px);
+    transition: transform .16s cubic-bezier(.4,0,.6,1);
+    transform: rotate(-13deg) translateY(-6px);
+    border-bottom:2px solid #000;
+  }
+  .board.armed .clapper-arm{ transform:rotate(0deg) translateY(0); }
+
+  .board-actions{
+    display:flex; align-items:stretch; gap:1px; background:#000;
+  }
+  .board-actions button{
+    flex:1; padding:14px 8px; font-family:var(--font-display); font-weight:600; font-size:15px; letter-spacing:.04em;
+    display:flex; align-items:center; justify-content:center; gap:8px; transition:filter .1s ease;
+  }
+  .btn-ng{ background:var(--red-dim); color:#ffd7d2; }
+  .btn-ng:hover{ filter:brightness(1.15); }
+  .btn-clap{ background:var(--amber); color:var(--slate); flex:1.3; font-size:17px; }
+  .btn-clap:hover{ filter:brightness(1.08); }
+  .btn-clap:disabled{ opacity:.35; }
+  .btn-ok{ background:var(--green-dim); color:#c9f0d4; }
+  .btn-ok:hover{ filter:brightness(1.15); }
+  .board-actions button:disabled{ opacity:.3; pointer-events:none; }
+
+  .board-body{ padding:16px 20px; }
+  .board-row1{ display:flex; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .b-field{ }
+  .b-field .b-label{ font-size:10px; letter-spacing:.08em; color:#8d8a7f; font-family:var(--font-display); text-transform:uppercase; }
+  .b-field .b-value{ font-size:16px; color:var(--chalk); font-family:var(--font-mono); margin-top:2px; }
+  .toggle-pair{ display:flex; gap:10px; margin-top:5px; }
+  .toggle-dot{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:#8d8a7f; }
+  .toggle-circle{
+    width:16px; height:16px; border-radius:50%; border:2px solid #6b6858; position:relative; flex-shrink:0;
+  }
+  .toggle-dot.active .toggle-circle{ border-color:var(--amber); }
+  .toggle-dot.active .toggle-circle::after{
+    content:''; position:absolute; inset:2px; border-radius:50%; background:var(--amber);
+  }
+  .toggle-dot.active{ color:var(--chalk); }
+  .toggle-dot button{ display:flex; align-items:center; gap:6px; }
+
+  .scn-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .scn-box{
+    border:1px solid #3a3a34; border-radius:8px; padding:10px 12px; background:rgba(255,255,255,.02);
+    text-align:center;
+  }
+  .scn-box .b-label{ margin-bottom:6px; }
+  .scn-num{ font-family:var(--font-mono); font-size:36px; color:var(--chalk); line-height:1; }
+  .scn-sub{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+  .stepper{ width:30px; height:30px; border-radius:50%; background:#2b2a25; color:var(--chalk); font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .stepper:hover{ background:#3a3931; }
+  .scn-hint{ font-size:10.5px; color:#7d7a6e; margin-top:6px; }
+
+  .divider-line{ height:1px; background:#2c2b26; margin:14px 0; }
+  .dup-warning{
+    margin-top:12px; background:var(--red-dim); color:#ffd7d2; padding:9px 12px; border-radius:8px;
+    font-size:12.5px; font-family:var(--font-display); letter-spacing:.01em; text-align:center;
+  }
+
+  .timecode-row{ display:flex; align-items:center; justify-content:space-between; }
+  .timecode{ font-family:var(--font-mono); font-size:44px; color:var(--amber); letter-spacing:.02em; }
+  .timecode.idle{ color:#5c5a50; }
+  .timecode-status{ font-size:12px; color:#8d8a7f; font-family:var(--font-display); letter-spacing:.05em; }
+  .timecode-status.rec{ color:var(--red); }
+  .timecode-status.rec::before{ content:'● '; }
+
+  .whiteboard-wrap{ margin-top:6px; }
+  .whiteboard-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .whiteboard-head .b-label{ margin:0; }
+  .wb-clear{ font-size:11px; color:#8d8a7f; padding:4px 10px; border-radius:6px; background:rgba(255,255,255,.05); }
+  .wb-clear:hover{ color:var(--chalk); background:rgba(255,255,255,.09); }
+  canvas#whiteboard{
+    width:100%; height:110px; background:#141410; border:1px solid #34332c; border-radius:8px;
+    touch-action:none; display:block;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+
+  /* side panel: quick history */
+  .clapper-side{
+    width:230px; flex-shrink:0; border-left:1px solid var(--border-soft); background:var(--panel);
+    padding:18px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;
+  }
+  .clapper-side h3{ font-size:12.5px; letter-spacing:.05em; color:var(--chalk-dim); text-transform:uppercase; margin-bottom:2px; }
+  .hist-item{ background:var(--panel-2); border-radius:8px; padding:9px 11px; font-size:12.5px; font-family:var(--font-mono); display:flex; justify-content:space-between; }
+  .hist-item .r-ok{ color:#a7d9b6; }
+  .hist-item .r-ng{ color:#f0b3ae; }
+
+  /* ---------- Modals ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50;
+    backdrop-filter:blur(2px);
+  }
+  .modal-overlay.active{ display:flex; }
+  .modal-box{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-md); padding:22px; width:320px; max-width:90vw; }
+  .modal-box h3{ font-family:var(--font-display); font-size:16px; margin-bottom:16px; text-align:center; }
+  .scene-list{ max-height:280px; overflow-y:auto; scroll-snap-type:y mandatory; border:1px solid var(--border-soft); border-radius:8px; }
+  .scene-list-item{
+    padding:12px; text-align:center; font-family:var(--font-mono); font-size:18px; scroll-snap-align:center;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .scene-list-item:hover{ background:var(--panel-2); color:var(--amber); }
+  .scene-list-item:last-child{ border-bottom:none; }
+  .numpad{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+  .numpad button{ background:var(--panel-2); padding:16px; border-radius:8px; font-family:var(--font-mono); font-size:18px; }
+  .numpad button:hover{ background:var(--panel-3); color:var(--amber); }
+  .numpad-display{ text-align:center; font-family:var(--font-mono); font-size:26px; margin-bottom:14px; background:var(--panel-2); border-radius:8px; padding:12px; }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions button{ flex:1; padding:11px; border-radius:8px; font-family:var(--font-display); font-size:13.5px; }
+  .modal-cancel{ background:var(--panel-2); color:var(--chalk-dim); }
+  .modal-confirm{ background:var(--amber); color:var(--slate); font-weight:600; }
+
+  .toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--panel-3); color:var(--chalk); padding:12px 20px; border-radius:10px; font-size:13.5px;
+    border:1px solid var(--border); z-index:80; transition:all .25s ease; pointer-events:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width: 880px){
+    .clapper-side{ display:none; }
+    .field-row{ grid-template-columns:1fr; }
+    #screen-home{ padding:24px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ HOME ============ -->
+  <div class="screen active" id="screen-home">
+    <div class="home-header">
+      <div>
+        <div class="home-title">클랩<span>!</span></div>
+        <div class="home-sub">진행중인 프로젝트를 선택하거나 새 프로젝트를 만드세요</div>
+      </div>
+      <button class="new-project-btn" onclick="goTo('new')">＋ 새 프로젝트 만들기</button>
+    </div>
+    <div id="project-grid" class="project-grid"></div>
+  </div>
+
+  <!-- ============ NEW PROJECT ============ -->
+  <div class="screen" id="screen-new">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('home')">←</button>
+      <div class="topbar-title">새 프로젝트 만들기</div>
+    </div>
+    <div class="form-shell">
+      <div class="field">
+        <label>작품명 *</label>
+        <input type="text" id="f-title" placeholder="예) 여름밤의 기록">
+        <div class="req-err" id="err-title">작품명을 입력해 주세요.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>제작사</label>
+          <input type="text" id="f-company" placeholder="예) 클랩 필름스">
+        </div>
+        <div class="field">
+          <label>감독</label>
+          <input type="text" id="f-director" placeholder="예) 김OO">
+        </div>
+      </div>
+      <div class="field">
+        <label>스태프</label>
+        <textarea id="f-staff" placeholder="촬영, 조명, 미술 등 (쉼표로 구분)"></textarea>
+      </div>
+      <div class="field">
+        <label>출연진</label>
+        <textarea id="f-cast" placeholder="배우 이름 (쉼표로 구분)"></textarea>
+      </div>
+      <div class="field">
+        <label>전체 씬 수</label>
+        <input type="number" id="f-total" min="1" placeholder="예) 84">
+      </div>
+      <div class="field">
+        <label>삭제 비밀번호 *</label>
+        <input type="password" id="f-password" placeholder="프로젝트 삭제 시 필요해요 (4자 이상)">
+        <div class="req-err" id="err-password">삭제 비밀번호를 4자 이상 입력해 주세요.</div>
+      </div>
+      <div class="field">
+        <label>시나리오 업로드 (선택, PDF)</label>
+        <div class="upload-box">
+          <div class="icon">📄</div>
+          <div class="info">
+            <div class="fname" id="f-scenario-name">파일을 선택하세요</div>
+            <div class="fhint">지금 넘어가도 괜찮아요 — 나중에 ‘시나리오’ 탭에서 올릴 수 있어요</div>
+          </div>
+          <label class="upload-btn">
+            선택<input type="file" accept="application/pdf" id="f-scenario" style="display:none">
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>스토리보드 업로드 (선택, PDF)</label>
+        <div class="upload-box">
+          <div class="icon">🎞️</div>
+          <div class="info">
+            <div class="fname" id="f-storyboard-name">파일을 선택하세요</div>
+            <div class="fhint">지금 넘어가도 괜찮아요 — 나중에 ‘시나리오’ 탭에서 올릴 수 있어요</div>
+          </div>
+          <label class="upload-btn">
+            선택<input type="file" accept="application/pdf" id="f-storyboard" style="display:none">
+          </label>
+        </div>
+      </div>
+      <button class="submit-btn" onclick="createProject()">프로젝트 생성</button>
+    </div>
+  </div>
+
+  <!-- ============ PROJECT SHELL ============ -->
+  <div class="screen" id="screen-project">
+    <div class="proj-topbar">
+      <button class="back-btn" onclick="goTo('home')">←</button>
+      <div class="proj-title" id="proj-title-label">-</div>
+      <div class="proj-tabs">
+        <button class="proj-tab" data-view="storage" onclick="switchProjView('storage')">저장소</button>
+        <button class="proj-tab" data-view="clapper" onclick="switchProjView('clapper')">클래퍼보드</button>
+        <button class="proj-tab" data-view="script" onclick="switchProjView('script')">시나리오</button>
+      </div>
+    </div>
+    <div class="proj-body">
+
+      <!-- ---- Storage / Archive ---- -->
+      <div class="proj-view" id="view-storage">
+        <div class="storage-head">
+          <div class="storage-progress-card">
+            <div class="storage-progress-text">
+              <div class="big" id="progress-count">0</div>
+              <div class="lbl">완료된 컷 (OK)</div>
+            </div>
+          </div>
+          <div class="export-btns">
+            <button class="export-btn primary" onclick="exportDailyLog('xlsx')">⬇ 오늘의 촬영 리포트 (Excel)</button>
+            <button class="export-btn" onclick="exportDailyLog('pdf')">⬇ PDF로 내보내기</button>
+          </div>
+        </div>
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr><th>씬</th><th>컷</th><th>테이크</th><th>NG 횟수</th><th>낮/밤</th><th>내/외</th><th>소요시간</th><th>기록시각</th></tr>
+            </thead>
+            <tbody id="log-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="log-empty" style="display:none;">아직 기록된 씬이 없어요. 클래퍼보드에서 촬영을 시작해 보세요.</div>
+        </div>
+      </div>
+
+      <!-- ---- Clapperboard ---- -->
+      <div class="proj-view" id="view-clapper">
+        <div class="clapper-stage">
+          <div class="board" id="board">
+            <div class="clapper-arm"></div>
+            <div class="board-actions">
+              <button class="btn-ng" id="btn-ng" onclick="pressNG()" disabled>NG</button>
+              <button class="btn-clap" id="btn-clap" onclick="pressClap()">CLAP!</button>
+              <button class="btn-ok" id="btn-ok" onclick="pressOK()" disabled>OK</button>
+            </div>
+            <div class="board-body">
+              <div class="board-row1">
+                <div class="b-field">
+                  <div class="b-label">Production</div>
+                  <div class="b-value" id="b-production">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Direction</div>
+                  <div class="b-value" id="b-direction">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Date</div>
+                  <div class="b-value" id="b-date">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Day / Night</div>
+                  <div class="toggle-pair">
+                    <div class="toggle-dot" id="dot-day"><button onclick="setDayNight('DAY')"><span class="toggle-circle"></span>DAY</button></div>
+                    <div class="toggle-dot" id="dot-night"><button onclick="setDayNight('NIGHT')"><span class="toggle-circle"></span>NIGHT</button></div>
+                  </div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Int / Ext</div>
+                  <div class="toggle-pair">
+                    <div class="toggle-dot" id="dot-int"><button onclick="setIntExt('INT')"><span class="toggle-circle"></span>INT</button></div>
+                    <div class="toggle-dot" id="dot-ext"><button onclick="setIntExt('EXT')"><span class="toggle-circle"></span>EXT</button></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="scn-grid">
+                <div class="scn-box">
+                  <div class="b-label">Scene</div>
+                  <div class="scn-num" id="disp-scene">1</div>
+                  <div class="scn-hint" onclick="openSceneModal()" style="cursor:pointer;text-decoration:underline;">탭하여 선택</div>
+                </div>
+                <div class="scn-box">
+                  <div class="b-label">Cut</div>
+                  <div class="scn-num" id="disp-cut">1</div>
+                  <div class="scn-hint" onclick="openCutModal()" style="cursor:pointer;text-decoration:underline;">넘버패드 입력</div>
+                </div>
+                <div class="scn-box">
+                  <div class="b-label">Take</div>
+                  <div class="scn-num" id="disp-take">1</div>
+                  <div class="scn-hint" id="take-hint">자동 기록</div>
+                </div>
+              </div>
+
+              <div class="dup-warning" id="dup-warning" style="display:none;">⚠ 이미 완료된 컷입니다 — 계속 진행하면 반복 촬영으로 기록됩니다</div>
+
+              <div class="divider-line"></div>
+
+              <div class="timecode-row">
+                <div>
+                  <div class="timecode idle" id="timecode">00:00:00</div>
+                  <div class="timecode-status" id="timecode-status">CLAP! 을 눌러 시작</div>
+                </div>
+              </div>
+
+              <div class="whiteboard-wrap">
+                <div class="whiteboard-head">
+                  <div class="b-label">Notes (화이트보드)</div>
+                  <button class="wb-clear" onclick="clearWhiteboard()">지우기</button>
+                </div>
+                <canvas id="whiteboard"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="clapper-side">
+          <h3>최근 기록</h3>
+          <div id="hist-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+
+      <!-- ---- Script viewer ---- -->
+      <div class="proj-view" id="view-script">
+        <div class="script-tabs" id="script-tabs">
+          <button class="script-tab active" data-doc="scenario" onclick="switchScriptDoc('scenario')">시나리오</button>
+          <button class="script-tab" data-doc="storyboard" id="tab-storyboard" onclick="switchScriptDoc('storyboard')">스토리보드</button>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+            <span id="doc-current-name" style="font-size:12px; color:var(--chalk-dim); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+            <button class="upload-btn" id="doc-upload-btn" onclick="pickProjectDoc()">＋ 업로드</button>
+            <button class="upload-btn" id="doc-remove-btn" onclick="removeProjectDoc()" style="display:none;">제거</button>
+          </div>
+        </div>
+        <input type="file" accept="application/pdf" id="doc-upload-input" style="display:none">
+        <div class="script-frame-wrap" id="script-frame-wrap"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Scene picker modal -->
+<div class="modal-overlay" id="modal-scene">
+  <div class="modal-box">
+    <h3>씬 번호 선택</h3>
+    <div class="scene-list" id="scene-list"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="modal-cancel" onclick="closeModal('modal-scene')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cut numpad modal -->
+<div class="modal-overlay" id="modal-cut">
+  <div class="modal-box">
+    <h3>컷 번호 입력</h3>
+    <div class="numpad-display" id="numpad-display">0</div>
+    <div class="numpad" id="numpad-grid"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-cut')">취소</button>
+      <button class="modal-confirm" onclick="confirmCut()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete project modal -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal-box">
+    <h3 id="delete-modal-title">프로젝트 삭제</h3>
+
+    <!-- step 1: password -->
+    <div id="delete-step-pw">
+      <div style="font-size:13px; color:var(--chalk-dim); text-align:center; margin-bottom:14px;">
+        <strong id="delete-project-name" style="color:var(--chalk);"></strong> <span id="delete-modal-desc"></span>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <input type="password" id="delete-pw-input" placeholder="삭제 비밀번호" onkeydown="if(event.key==='Enter') submitDeletePassword();">
+      </div>
+      <div class="req-err" id="delete-pw-err" style="display:none; margin-top:2px; margin-bottom:12px;">비밀번호가 일치하지 않아요.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeModal('modal-delete')">취소</button>
+        <button class="modal-confirm" style="background:var(--red); color:#fff;" onclick="submitDeletePassword()">다음</button>
+      </div>
+    </div>
+
+    <!-- step 2: final confirmation -->
+    <div id="delete-step-confirm" style="display:none;">
+      <div style="font-size:13px; color:var(--chalk-dim); text-align:center; margin-bottom:8px; line-height:1.7;">
+        <strong id="delete-confirm-name" style="color:var(--chalk);"></strong> 프로젝트와<br>
+        <strong id="delete-confirm-count" style="color:var(--chalk);"></strong>이(가) 모두 지워집니다.
+      </div>
+      <div style="font-size:12.5px; color:var(--red); text-align:center; margin-bottom:16px;">되돌릴 수 없어요. 정말 삭제할까요?</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="backToDeletePassword()">아니요</button>
+        <button class="modal-confirm" style="background:var(--red); color:#fff;" onclick="confirmDeleteProject()">네, 삭제합니다</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ============================================================
+   STATE
+============================================================ */
+const STORAGE_KEY = 'clapper_app_state_v1';
+let state = { projects: [], currentProjectId: null };
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){ console.warn('state load failed', e); }
+  state.projects.forEach(normalizeProject);
+}
+function normalizeProject(p){
+  if(!p.ngCounters) p.ngCounters = p.takeCounters || {};
+  delete p.takeCounters;
+  if(!p.completed) p.completed = {};
+  if(!Array.isArray(p.records)) p.records = [];
+  // older builds logged NG attempts as their own records; those are stale under
+  // the current model (only completed OK takes are logged) and cause false
+  // "already completed" warnings, so drop anything that isn't a real OK take.
+  p.records = p.records.filter(r=>r.result==='OK');
+  // older builds stored dateISO from toISOString() (UTC), which put late-evening
+  // Korean shoots on the previous day. Recompute from the timestamp, in local time.
+  p.records.forEach(r=>{ if(r.ts) r.dateISO = localISO(new Date(r.ts)); });
+  if(p.deletePassword===undefined) p.deletePassword = '';
+  return p;
+}
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    // likely quota exceeded (large PDFs) -> retry without heavy pdf data
+    try{
+      const lite = JSON.parse(JSON.stringify(state));
+      lite.projects.forEach(p=>{ p._pdfWarn = true; if(p.scenarioPdf) p.scenarioPdf.dataUrl=''; if(p.storyboardPdf) p.storyboardPdf.dataUrl=''; });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lite));
+      showToast('저장공간이 부족해 PDF는 이번 세션에서만 유지돼요');
+    }catch(e2){ console.warn('state save failed', e2); }
+  }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function getProject(id){ return state.projects.find(p=>p.id===id); }
+function currentProject(){ return getProject(state.currentProjectId); }
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+function goTo(screen){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+screen).classList.add('active');
+  if(screen==='home') renderHome();
+}
+
+function openProject(id){
+  state.currentProjectId = id; saveState();
+  const p = getProject(id);
+  document.getElementById('proj-title-label').textContent = p.title;
+  goTo('project');
+  switchProjView('storage');
+}
+
+function switchProjView(view){
+  document.querySelectorAll('.proj-tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
+  document.querySelectorAll('.proj-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='storage') renderStorage();
+  if(view==='clapper') renderClapper();
+  if(view==='script') renderScript();
+}
+
+/* ============================================================
+   HOME
+============================================================ */
+function renderHome(){
+  const grid = document.getElementById('project-grid');
+  if(state.projects.length===0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="glyph">🎬</div>
+      <div>아직 만든 프로젝트가 없어요.<br>‘새 프로젝트 만들기’로 첫 촬영을 준비해 보세요.</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = state.projects.map(p=>{
+    const done = (p.records||[]).length;
+    const total = p.totalScenes || 0;
+    return `<div class="project-card" onclick="openProject('${p.id}')">
+      <div class="clap-stripe"></div>
+      <div class="card-del" onclick="event.stopPropagation(); deleteProject('${p.id}')">✕</div>
+      <div class="body">
+        <div class="p-title">${escapeHtml(p.title)}</div>
+        <div class="p-meta">감독 ${escapeHtml(p.director||'-')} · 제작 ${escapeHtml(p.company||'-')}<br>생성일 ${p.createdAt} · 전체 씬 ${total||'-'}개</div>
+        <div class="p-progress">
+          <div class="progress-label">완료된 컷 ${done}개</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let deleteTargetId = null;
+function deleteProject(id){
+  deleteTargetId = id;
+  const p = getProject(id);
+  document.getElementById('delete-pw-err').style.display='none';
+  document.getElementById('delete-pw-input').value='';
+  document.getElementById('delete-project-name').textContent = p.title;
+  const hasPw = !!p.deletePassword;
+  document.getElementById('delete-pw-input').style.display = hasPw ? 'block':'none';
+  document.getElementById('delete-modal-desc').textContent = hasPw
+    ? '을(를) 삭제하려면 삭제 비밀번호를 입력하세요.'
+    : '을(를) 삭제할까요? (이 프로젝트는 비밀번호가 설정되어 있지 않아요)';
+  showDeleteStep('pw');
+  document.getElementById('modal-delete').classList.add('active');
+  if(hasPw) setTimeout(()=>document.getElementById('delete-pw-input').focus(), 50);
+}
+
+function showDeleteStep(step){
+  const isPw = step==='pw';
+  document.getElementById('delete-step-pw').style.display = isPw ? 'block':'none';
+  document.getElementById('delete-step-confirm').style.display = isPw ? 'none':'block';
+  document.getElementById('delete-modal-title').textContent = isPw ? '프로젝트 삭제' : '한 번 더 확인할게요';
+}
+function backToDeletePassword(){
+  document.getElementById('delete-pw-input').value='';
+  document.getElementById('delete-pw-err').style.display='none';
+  showDeleteStep('pw');
+  const p = getProject(deleteTargetId);
+  if(p && p.deletePassword) setTimeout(()=>document.getElementById('delete-pw-input').focus(), 50);
+}
+
+/* step 1 — verify the password, then ask again before anything is removed */
+function submitDeletePassword(){
+  const p = getProject(deleteTargetId);
+  if(!p){ closeModal('modal-delete'); return; }
+  const input = document.getElementById('delete-pw-input').value;
+  if(p.deletePassword && input !== p.deletePassword){
+    document.getElementById('delete-pw-err').style.display='block';
+    return;
+  }
+  document.getElementById('delete-pw-err').style.display='none';
+  document.getElementById('delete-confirm-name').textContent = p.title;
+  const n = (p.records||[]).length;
+  document.getElementById('delete-confirm-count').textContent = n>0 ? `촬영 기록 ${n}건` : '저장된 모든 내용';
+  showDeleteStep('confirm');
+}
+
+/* step 2 — the actual delete */
+function confirmDeleteProject(){
+  const p = getProject(deleteTargetId);
+  if(!p){ closeModal('modal-delete'); return; }
+  state.projects = state.projects.filter(x=>x.id!==deleteTargetId);
+  if(state.currentProjectId===deleteTargetId) state.currentProjectId=null;
+  deleteTargetId = null;
+  saveState();
+  closeModal('modal-delete');
+  renderHome();
+  showToast('프로젝트가 삭제되었어요');
+}
+
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============================================================
+   NEW PROJECT
+============================================================ */
+let pendingScenario = null, pendingStoryboard = null;
+
+document.getElementById('f-scenario').addEventListener('change', e=>handleUpload(e,'scenario'));
+document.getElementById('f-storyboard').addEventListener('change', e=>handleUpload(e,'storyboard'));
+
+function handleUpload(e, kind){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const payload = {name:file.name, dataUrl:reader.result};
+    if(kind==='scenario'){ pendingScenario = payload; document.getElementById('f-scenario-name').textContent = file.name; }
+    else{ pendingStoryboard = payload; document.getElementById('f-storyboard-name').textContent = file.name; }
+  };
+  reader.readAsDataURL(file);
+}
+
+function createProject(){
+  const title = document.getElementById('f-title').value.trim();
+  const password = document.getElementById('f-password').value;
+  let ok = true;
+  if(!title){ document.getElementById('err-title').style.display='block'; ok=false; }
+  else document.getElementById('err-title').style.display='none';
+  if(!password || password.length<4){ document.getElementById('err-password').style.display='block'; ok=false; }
+  else document.getElementById('err-password').style.display='none';
+  if(!ok) return;
+
+  const p = {
+    id: uid(),
+    title,
+    company: document.getElementById('f-company').value.trim(),
+    director: document.getElementById('f-director').value.trim(),
+    staff: document.getElementById('f-staff').value.trim(),
+    cast: document.getElementById('f-cast').value.trim(),
+    totalScenes: parseInt(document.getElementById('f-total').value)||0,
+    deletePassword: password,
+    scenarioPdf: pendingScenario,
+    storyboardPdf: pendingStoryboard,
+    createdAt: todayISO(),
+    ngCounters: {},
+    completed: {},
+    records: []
+  };
+  state.projects.push(p);
+  saveState();
+
+  // reset form
+  ['f-title','f-company','f-director','f-staff','f-cast','f-total','f-password'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-scenario-name').textContent='파일을 선택하세요';
+  document.getElementById('f-storyboard-name').textContent='파일을 선택하세요';
+  pendingScenario=null; pendingStoryboard=null;
+
+  openProject(p.id);
+}
+
+/* ============================================================
+   STORAGE / ARCHIVE
+============================================================ */
+/* local (device timezone) YYYY-MM-DD — toISOString() would roll the date back
+   by a day for anyone east of UTC, which is why the board and the archive
+   used to disagree. */
+function localISO(d){
+  d = d || new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function todayISO(){ return localISO(new Date()); }
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+}
+function todayLabel(){
+  const d = new Date();
+  const days=['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})`;
+}
+
+function formatDateKR(dateISO){
+  const d = new Date(dateISO+'T00:00:00');
+  return `${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+
+function renderStorage(){
+  const p = currentProject(); if(!p) return;
+  const done = p.records.length;
+  document.getElementById('progress-count').textContent = done;
+
+  const tbody = document.getElementById('log-tbody');
+  const recs = [...p.records].sort((a,b)=>b.ts-a.ts);
+  if(recs.length===0){
+    tbody.innerHTML='';
+    document.getElementById('log-empty').style.display='block';
+    return;
+  }
+  document.getElementById('log-empty').style.display='none';
+
+  const dates = [];
+  recs.forEach(r=>{ if(!dates.includes(r.dateISO)) dates.push(r.dateISO); });
+
+  let html = '';
+  dates.forEach((d, idx)=>{
+    if(idx>0) html += `<tr class="date-divider-row"><td colspan="8"><div class="date-divider"></div></td></tr>`;
+    html += `<tr class="date-group-row"><td colspan="8" class="date-group-label">${formatDateKR(d)}에 찍은 씬</td></tr>`;
+    recs.filter(r=>r.dateISO===d).forEach(r=>{
+      html += `<tr>
+        <td>${r.scene}</td><td>${r.cutLabel||r.cut}</td><td>${r.take}</td>
+        <td><span class="pill ${r.ngCount>0?'ng':'ok'}">${r.ngCount>0 ? r.ngCount+'회' : '없음'}</span></td>
+        <td>${r.dayNight||'-'}</td><td>${r.intExt||'-'}</td>
+        <td>${r.duration}</td><td>${formatDateKR(d)} ${r.timeLabel}</td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+}
+
+const EXPORT_HEADERS = ['날짜','씬','컷','테이크','NG 횟수','낮/밤','내/외','소요시간','기록시각'];
+function exportRow(r){
+  return [
+    fullDateKR(r.dateISO),
+    r.scene,
+    r.cutLabel||r.cut,
+    r.take,
+    r.ngCount||0,
+    r.dayNight||'-',
+    r.intExt||'-',
+    r.duration,
+    r.timeLabel
+  ];
+}
+function fullDateKR(dateISO){
+  if(!dateISO) return '-';
+  const d = new Date(dateISO+'T00:00:00');
+  if(isNaN(d)) return dateISO;
+  const days=['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})`;
+}
+
+function exportDailyLog(fmt){
+  const p = currentProject(); if(!p) return;
+  const today = todayISO();                       // local date, matches the board
+  const rows = p.records.filter(r=>r.dateISO===today).sort((a,b)=>a.ts-b.ts);
+  if(rows.length===0){ showToast('오늘 완료(OK)된 씬 기록이 없어요'); return; }
+
+  const filenameBase = `${p.title}_${todayStr()}_Daily_Log`;
+
+  if(fmt==='xlsx'){
+    const data = [
+      [p.title],
+      [`촬영일 ${todayLabel()}`, '', `감독 ${p.director||'-'}`, '', `제작 ${p.company||'-'}`],
+      [],
+      EXPORT_HEADERS
+    ];
+    rows.forEach(r=> data.push(exportRow(r)));
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:16},{wch:6},{wch:8},{wch:8},{wch:9},{wch:8},{wch:8},{wch:11},{wch:12}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Log');
+    const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    offerDownload(filenameBase+'.xlsx', new Blob([out], {type:'application/octet-stream'}));
+  }else{
+    exportPdf(p, rows, filenameBase+'.pdf');
+  }
+}
+
+/* jsPDF's built-in fonts carry no Hangul, which is where the 외계어 came from.
+   So the page is painted on a canvas with the browser's own Korean fonts and
+   placed into the PDF as a full-page image. */
+function exportPdf(p, rows, filename){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+    const PW = 297, PH = 210;               // A4 landscape, mm
+    const SCALE = 4;                         // px per mm
+    const W = PW*SCALE, H = PH*SCALE;
+
+    const colW = [0.15,0.06,0.08,0.09,0.10,0.10,0.10,0.14,0.18]; // fractions of table width
+    const marginX = 14*SCALE;
+    const tableW = W - marginX*2;
+    const colX = []; let acc = marginX;
+    colW.forEach(w=>{ colX.push(acc); acc += w*tableW; });
+
+    const rowH = 9*SCALE;
+    const headerTop = 44*SCALE;
+    const firstRowY = headerTop + 12*SCALE;
+    const perPage = Math.floor((H - firstRowY - 14*SCALE) / rowH);
+    const pages = Math.max(1, Math.ceil(rows.length/perPage));
+
+    for(let pg=0; pg<pages; pg++){
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const c = canvas.getContext('2d');
+
+      c.fillStyle = '#ffffff'; c.fillRect(0,0,W,H);
+
+      // title block
+      c.fillStyle = '#111111';
+      c.font = `600 ${7.5*SCALE}px "Oswald", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.textBaseline = 'alphabetic';
+      c.fillText(`${p.title} — 오늘의 촬영 리포트`, marginX, 22*SCALE);
+
+      c.fillStyle = '#555555';
+      c.font = `${4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(`촬영일 ${todayLabel()}   ·   감독 ${p.director||'-'}   ·   제작 ${p.company||'-'}   ·   완료 컷 ${rows.length}개`, marginX, 31*SCALE);
+
+      // header row
+      c.fillStyle = '#f0efe9';
+      c.fillRect(marginX, headerTop-6.5*SCALE, tableW, 10*SCALE);
+      c.fillStyle = '#333333';
+      c.font = `600 ${4.1*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      EXPORT_HEADERS.forEach((h,i)=> c.fillText(h, colX[i]+1.5*SCALE, headerTop));
+
+      c.strokeStyle = '#cccccc'; c.lineWidth = 0.6*SCALE;
+      c.beginPath(); c.moveTo(marginX, headerTop+3.5*SCALE); c.lineTo(marginX+tableW, headerTop+3.5*SCALE); c.stroke();
+
+      // data rows
+      const slice = rows.slice(pg*perPage, (pg+1)*perPage);
+      c.font = `${4.1*SCALE}px "Space Mono", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", monospace`;
+      slice.forEach((r, idx)=>{
+        const y = firstRowY + idx*rowH;
+        if(idx%2===1){ c.fillStyle='#fafaf7'; c.fillRect(marginX, y-5.5*SCALE, tableW, rowH); }
+        c.fillStyle = '#1a1a1a';
+        exportRow(r).forEach((v,i)=> c.fillText(String(v), colX[i]+1.5*SCALE, y));
+        c.strokeStyle = '#eeeeee'; c.lineWidth = 0.4*SCALE;
+        c.beginPath(); c.moveTo(marginX, y+3.5*SCALE); c.lineTo(marginX+tableW, y+3.5*SCALE); c.stroke();
+      });
+
+      // footer
+      c.fillStyle = '#888888';
+      c.font = `${3.4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(`클랩! Clapperboard   ·   ${pg+1} / ${pages}`, marginX, H-8*SCALE);
+
+      if(pg>0) doc.addPage('a4','landscape');
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, PW, PH);
+    }
+
+    offerDownload(filename, doc.output('blob'));
+  }catch(e){
+    console.warn('pdf export failed', e);
+    showToast('PDF를 만드는 데 실패했어요');
+  }
+}
+
+async function offerDownload(filename, blob){
+  try{
+    const downloads = await claude.use('downloads');
+    if(downloads){
+      await downloads.save({filename, data: blob});
+      showToast('저장되었습니다: '+filename);
+      return;
+    }
+  }catch(e){ /* fall through to browser download */ }
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    showToast('다운로드를 시작했어요');
+  }catch(e){ showToast('다운로드에 실패했어요'); }
+}
+
+/* ============================================================
+   SCRIPT VIEWER
+============================================================ */
+let currentScriptDoc = 'scenario';
+const DOC_LABEL = { scenario:'시나리오', storyboard:'스토리보드' };
+
+function renderScript(){
+  const p = currentProject(); if(!p) return;
+  switchScriptDoc(currentScriptDoc);
+}
+function switchScriptDoc(doc){
+  currentScriptDoc = doc;
+  document.querySelectorAll('.script-tab').forEach(t=>t.classList.toggle('active', t.dataset.doc===doc));
+  const p = currentProject(); if(!p) return;
+  const wrap = document.getElementById('script-frame-wrap');
+  const file = doc==='scenario' ? p.scenarioPdf : p.storyboardPdf;
+  const has = !!(file && file.dataUrl);
+
+  document.getElementById('doc-current-name').textContent = has ? file.name : '';
+  document.getElementById('doc-upload-btn').textContent = has ? '교체' : '＋ 업로드';
+  document.getElementById('doc-remove-btn').style.display = has ? 'inline-block':'none';
+
+  if(!has){
+    wrap.innerHTML = `<div class="script-empty">
+      <div class="glyph">${doc==='scenario'?'📄':'🎞️'}</div>
+      <div>아직 업로드된 ${DOC_LABEL[doc]}이(가) 없어요</div>
+      <button class="export-btn primary" style="margin-top:6px;" onclick="pickProjectDoc()">＋ ${DOC_LABEL[doc]} PDF 업로드</button>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = `<iframe src="${file.dataUrl}"></iframe>`;
+}
+
+/* upload a scenario / storyboard at any time after the project was created */
+function pickProjectDoc(){ document.getElementById('doc-upload-input').click(); }
+
+document.getElementById('doc-upload-input').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  e.target.value = '';                   // allow re-picking the same file later
+  if(!file) return;
+  if(file.type !== 'application/pdf'){ showToast('PDF 파일만 올릴 수 있어요'); return; }
+  const p = currentProject(); if(!p) return;
+  const kind = currentScriptDoc;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const payload = { name:file.name, dataUrl:reader.result };
+    if(kind==='scenario') p.scenarioPdf = payload; else p.storyboardPdf = payload;
+    saveState();
+    switchScriptDoc(kind);
+    showToast(`${DOC_LABEL[kind]}을(를) 불러왔어요 · ${file.name}`);
+  };
+  reader.onerror = ()=> showToast('파일을 읽지 못했어요');
+  reader.readAsDataURL(file);
+});
+
+function removeProjectDoc(){
+  const p = currentProject(); if(!p) return;
+  const kind = currentScriptDoc;
+  if(kind==='scenario') p.scenarioPdf = null; else p.storyboardPdf = null;
+  saveState();
+  switchScriptDoc(kind);
+  showToast(`${DOC_LABEL[kind]}을(를) 제거했어요`);
+}
+
+/* ============================================================
+   CLAPPERBOARD
+============================================================ */
+let board = { scene:1, cut:1, take:1, dayNight:null, intExt:null, running:false, startTime:0, timerHandle:null, elapsedMs:0 };
+
+function renderClapper(){
+  const p = currentProject(); if(!p) return;
+  document.getElementById('b-production').textContent = p.title;
+  document.getElementById('b-direction').textContent = p.director || '-';
+  document.getElementById('b-date').textContent = todayLabel();
+  updateSceneCutDisplay();
+  updateToggleUI();
+  renderHistList();
+  resizeWhiteboard();
+}
+
+function updateSceneCutDisplay(){
+  document.getElementById('disp-scene').textContent = board.scene;
+  document.getElementById('disp-cut').textContent = board.cut;
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  board.take = (p.ngCounters[key]||0)+1;
+  const ngHint = document.getElementById('take-hint');
+  if(ngHint) ngHint.textContent = (p.ngCounters[key]||0)>0 ? `NG ${p.ngCounters[key]}회` : '자동 기록';
+  document.getElementById('disp-take').textContent = board.take;
+
+  const alreadyDone = p.records.some(r=>r.scene===board.scene && r.cut===board.cut && r.result==='OK');
+  document.getElementById('dup-warning').style.display = alreadyDone ? 'block' : 'none';
+}
+
+function setDayNight(v){ board.dayNight = board.dayNight===v?null:v; updateToggleUI(); }
+function setIntExt(v){ board.intExt = board.intExt===v?null:v; updateToggleUI(); }
+function updateToggleUI(){
+  document.getElementById('dot-day').classList.toggle('active', board.dayNight==='DAY');
+  document.getElementById('dot-night').classList.toggle('active', board.dayNight==='NIGHT');
+  document.getElementById('dot-int').classList.toggle('active', board.intExt==='INT');
+  document.getElementById('dot-ext').classList.toggle('active', board.intExt==='EXT');
+}
+
+/* ---- scene modal ---- */
+function openSceneModal(){
+  const p = currentProject();
+  const total = p.totalScenes>0 ? p.totalScenes : Math.max(30, board.scene+10);
+  const list = document.getElementById('scene-list');
+  let html='';
+  for(let i=1;i<=total;i++){ html+=`<div class="scene-list-item" onclick="pickScene(${i})">${i}</div>`; }
+  list.innerHTML = html;
+  document.getElementById('modal-scene').classList.add('active');
+}
+function pickScene(n){ board.scene=n; updateSceneCutDisplay(); closeModal('modal-scene'); }
+
+/* ---- cut modal (numpad) ---- */
+let numpadValue = '';
+function openCutModal(){
+  numpadValue='';
+  document.getElementById('numpad-display').textContent='0';
+  const grid = document.getElementById('numpad-grid');
+  const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','C'];
+  grid.innerHTML = keys.map(k=>`<button onclick="numpadPress('${k}')">${k}</button>`).join('');
+  document.getElementById('modal-cut').classList.add('active');
+}
+function numpadPress(k){
+  if(k==='⌫') numpadValue = numpadValue.slice(0,-1);
+  else if(k==='C') numpadValue='';
+  else if(numpadValue.length<3) numpadValue += k;
+  document.getElementById('numpad-display').textContent = numpadValue || '0';
+}
+function confirmCut(){
+  const n = parseInt(numpadValue||'0');
+  board.cut = n>0?n:1;
+  updateSceneCutDisplay();
+  closeModal('modal-cut');
+}
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+/* ---- CLAP / timer ---- */
+function fmtTime(ms){
+  const totalSec = Math.floor(ms/1000);
+  const h=String(Math.floor(totalSec/3600)).padStart(2,'0');
+  const m=String(Math.floor((totalSec%3600)/60)).padStart(2,'0');
+  const s=String(totalSec%60).padStart(2,'0');
+  return `${h}:${m}:${s}`;
+}
+
+/* one shared AudioContext, warmed up on first touch so the tone fires instantly.
+   iOS/iPadOS Safari is stricter than desktop browsers: resume() must be kicked
+   off from inside an actual user-gesture handler, AND (this is the part that
+   silently breaks it) scheduling sound before the context has fully finished
+   resuming plays nothing at all. So on the very first gesture we resume AND
+   play a near-silent buffer to fully unlock the context, and on every
+   CLAP! press we make sure resume() has actually settled before scheduling. */
+let audioCtx = null;
+let audioUnlocked = false;
+function getAudioCtx(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    return audioCtx;
+  }catch(e){ return null; }
+}
+function warmAudio(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  try{
+    // Both calls happen synchronously, in the same tick as the user's tap —
+    // that's what iOS Safari actually checks. Chaining anything through
+    // .then() here moves it a tick too late and Safari no longer counts it
+    // as gesture-triggered, so it silently stays suspended forever.
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+    if(ctx.state === 'suspended') ctx.resume();
+    audioUnlocked = true;
+  }catch(e){ /* ignore */ }
+}
+
+function playClapSound(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  try{
+    // IMPORTANT: do NOT await resume() here. Safari/iOS only allows
+    // oscillator.start() while still inside the synchronous call stack of
+    // the user's tap — awaiting anything first breaks that chain and the
+    // sound gets silently dropped. So resume() is fired-and-forgotten, and
+    // the nodes below are scheduled in the very same tick regardless of
+    // whether the promise has resolved yet.
+    if(ctx.state !== 'running') ctx.resume();
+    const now = ctx.currentTime;
+    const dur = 0.52;
+
+    // gentle low-pass so nothing gets shrill
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1400, now);
+    filter.Q.setValueAtTime(0.6, now);
+
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.5, now+0.012);   // soft, quick attack
+    master.gain.setValueAtTime(0.5, now+dur-0.18);
+    master.gain.exponentialRampToValueAtTime(0.0001, now+dur);  // long, mellow tail
+    filter.connect(master);
+    master.connect(ctx.destination);
+
+    // warm, rounded "뚜우---" : low sine body + quiet sub + faint triangle colour
+    const body = ctx.createOscillator();
+    body.type='sine'; body.frequency.setValueAtTime(466, now);
+    body.frequency.exponentialRampToValueAtTime(440, now+dur); // slight downward settle
+    const bodyGain = ctx.createGain(); bodyGain.gain.setValueAtTime(0.85, now);
+    body.connect(bodyGain); bodyGain.connect(filter);
+
+    const sub = ctx.createOscillator();
+    sub.type='sine'; sub.frequency.setValueAtTime(233, now);
+    const subGain = ctx.createGain(); subGain.gain.setValueAtTime(0.35, now);
+    sub.connect(subGain); subGain.connect(filter);
+
+    const colour = ctx.createOscillator();
+    colour.type='triangle'; colour.frequency.setValueAtTime(932, now);
+    const colourGain = ctx.createGain(); colourGain.gain.setValueAtTime(0.10, now);
+    colour.connect(colourGain); colourGain.connect(filter);
+
+    [body, sub, colour].forEach(o=>{ o.start(now); o.stop(now+dur+0.03); });
+  }catch(e){ /* audio unsupported, ignore */ }
+}
+
+function pressClap(){
+  warmAudio();                         // harmless if already unlocked; guarantees this exact tap counts as the gesture
+  playClapSound();                     // fires on the press itself, no delay
+  const boardEl = document.getElementById('board');
+  boardEl.classList.add('armed','clapping');
+  setTimeout(()=>{ boardEl.classList.remove('clapping'); }, 340);
+
+  document.getElementById('btn-clap').disabled = true;
+  document.getElementById('btn-ng').disabled = false;
+  document.getElementById('btn-ok').disabled = false;
+
+  board.running = true;
+  board.startTime = Date.now();
+  const tcEl = document.getElementById('timecode');
+  tcEl.classList.remove('idle');
+  document.getElementById('timecode-status').textContent = '촬영 중';
+  document.getElementById('timecode-status').classList.add('rec');
+
+  board.timerHandle = setInterval(()=>{
+    tcEl.textContent = fmtTime(Date.now()-board.startTime);
+  }, 200);
+}
+
+function stopTimer(){
+  clearInterval(board.timerHandle);
+  const dur = Date.now()-board.startTime;
+  board.running = false;
+  document.getElementById('board').classList.remove('armed');
+  document.getElementById('btn-clap').disabled = false;
+  document.getElementById('btn-ng').disabled = true;
+  document.getElementById('btn-ok').disabled = true;
+  document.getElementById('timecode').classList.add('idle');
+  document.getElementById('timecode').textContent = '00:00:00';
+  document.getElementById('timecode-status').textContent = 'CLAP! 을 눌러 시작';
+  document.getElementById('timecode-status').classList.remove('rec');
+  return dur;
+}
+
+function pressNG(){
+  if(!board.running) return;
+  stopTimer();
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  p.ngCounters[key] = (p.ngCounters[key]||0)+1;
+  saveState();
+  updateSceneCutDisplay();
+  showToast(`NG · S${board.scene}-C${board.cut} 다음 테이크 ${board.take}`);
+}
+
+function pressOK(){
+  if(!board.running) return;
+  stopTimer();
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  const ngBefore = p.ngCounters[key]||0;
+  const priorCount = p.records.filter(r=>r.scene===board.scene && r.cut===board.cut && r.result==='OK').length;
+  const rec = mkRecord(ngBefore, priorCount);
+  p.records.push(rec);
+  p.completed[key] = { time: rec.timeLabel, take: rec.take };
+  p.ngCounters[key] = 0; // this scene/cut is done; a future reshoot starts fresh
+  saveState();
+  clearWhiteboard();
+  updateSceneCutDisplay();
+  renderHistList();
+  showToast(`완료 · S${board.scene}-C${rec.cutLabel} : 완료(${rec.timeLabel})`);
+}
+
+function mkRecord(ngCount, priorCount){
+  const now = new Date();
+  const dur = Date.now()-board.startTime;
+  const cutLabel = priorCount>0 ? `${board.cut}(${priorCount+1})` : `${board.cut}`;
+  return {
+    id: uid(), scene: board.scene, cut: board.cut, cutLabel, take: board.take,
+    result:'OK', ngCount: ngCount||0, dayNight: board.dayNight, intExt: board.intExt,
+    duration: fmtTime(dur), ts: now.getTime(),
+    dateISO: localISO(now),
+    timeLabel: now.toTimeString().slice(0,8)
+  };
+}
+
+function renderHistList(){
+  const p = currentProject(); if(!p) return;
+  const list = [...p.records].sort((a,b)=>b.ts-a.ts).slice(0,12);
+  document.getElementById('hist-list').innerHTML = list.map(r=>
+    `<div class="hist-item"><span>S${r.scene}-C${r.cutLabel||r.cut}-T${r.take}</span><span class="${r.ngCount>0?'r-ng':'r-ok'}">${r.ngCount>0?('NG '+r.ngCount+'회'):'OK'}</span></div>`
+  ).join('') || `<div style="color:var(--chalk-dim);font-size:12.5px;">기록 없음</div>`;
+}
+
+/* ---- whiteboard drawing ----
+   Pointer Events (setPointerCapture etc.) turned out not to fire reliably
+   on iPadOS Safari inside this published artifact's iframe. Touch events
+   and mouse events are the older, much better-supported APIs, so drawing
+   is now built on those directly instead — touch for finger/Pencil input,
+   mouse for trackpad/desktop, with a flag so a touch interaction never
+   also triggers the synthetic mouse events Safari fires after it. */
+let wbCtx, wbDrawing=false, wbUsedTouch=false;
+function resizeWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  const rect = canvas.getBoundingClientRect();
+  if(rect.width===0 || rect.height===0) return;   // not visible yet — nothing to size
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = Math.round(rect.width*dpr); canvas.height = Math.round(rect.height*dpr);
+  wbCtx = canvas.getContext('2d');
+  wbCtx.scale(dpr,dpr);
+  wbCtx.strokeStyle = '#f2efe6';   // chalk colour, against the dark board background
+  wbCtx.lineWidth = 2.6;
+  wbCtx.lineCap='round'; wbCtx.lineJoin='round';
+}
+function wbPos(clientX, clientY, canvas){
+  const rect = canvas.getBoundingClientRect();
+  return { x: clientX-rect.left, y: clientY-rect.top };
+}
+function wbStart(x,y){ if(!wbCtx) return; wbDrawing=true; wbCtx.beginPath(); wbCtx.moveTo(x,y); }
+function wbMove(x,y){ if(!wbDrawing || !wbCtx) return; wbCtx.lineTo(x,y); wbCtx.stroke(); }
+function wbEnd(){ wbDrawing=false; }
+
+function initWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  if(!canvas || canvas.dataset.wbInit) return;  // never bind twice
+  canvas.dataset.wbInit = '1';
+
+  canvas.addEventListener('touchstart', e=>{
+    wbUsedTouch = true;
+    const t = e.touches[0]; if(!t) return;
+    const p = wbPos(t.clientX, t.clientY, canvas);
+    wbStart(p.x, p.y);
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchmove', e=>{
+    const t = e.touches[0]; if(!t) return;
+    const p = wbPos(t.clientX, t.clientY, canvas);
+    wbMove(p.x, p.y);
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchend', e=>{ wbEnd(); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchcancel', e=>{ wbEnd(); }, {passive:false});
+
+  // mouse path — ignored on devices that just drew via touch, so Safari's
+  // synthetic mousedown/mouseup after a touch never draws a second stroke
+  canvas.addEventListener('mousedown', e=>{
+    if(wbUsedTouch) return;
+    const p = wbPos(e.clientX, e.clientY, canvas);
+    wbStart(p.x, p.y);
+  });
+  window.addEventListener('mousemove', e=>{
+    if(wbUsedTouch || !wbDrawing) return;
+    const p = wbPos(e.clientX, e.clientY, canvas);
+    wbMove(p.x, p.y);
+  });
+  window.addEventListener('mouseup', ()=>{ if(!wbUsedTouch) wbEnd(); });
+}
+function clearWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  if(!wbCtx) return;
+  const dpr = window.devicePixelRatio||1;
+  wbCtx.fillStyle = '#141410';
+  wbCtx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+window.addEventListener('DOMContentLoaded', ()=>{
+  loadState();
+  renderHome();
+  initWhiteboard();
+  // unlock/prepare the audio context on the very first tap so CLAP! is instant
+  const unlock = ()=>{
+    warmAudio();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('touchstart', unlock);
+    window.removeEventListener('mousedown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, {passive:true});
+  window.addEventListener('touchstart', unlock, {passive:true});
+  window.addEventListener('mousedown', unlock, {passive:true});
+  window.addEventListener('keydown', unlock);
+  setTimeout(()=>{ if(document.getElementById('whiteboard').offsetWidth>0) { resizeWhiteboard(); clearWhiteboard(); } }, 50);
+  window.addEventListener('resize', ()=>{ if(document.getElementById('view-clapper').classList.contains('active')){ resizeWhiteboard(); } });
+});
+</script>
+</body>
+</html>
